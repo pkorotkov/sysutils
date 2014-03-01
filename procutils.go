@@ -44,6 +44,10 @@ func GetOSProcesses() ([]OSProcess, error) {
 	return rprocs, nil
 }
 
+func GetCurrentProcessID() int {
+	return int(C.GetCurrentProcessId())
+}
+
 func IsProcessByNameAlone(name string) (bool, error) {
 	procs, err := GetOSProcesses()
 	if err != nil {
