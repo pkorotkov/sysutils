@@ -107,11 +107,44 @@ func GetThisExecutableName() (string, error) {
 	return sp[len(sp)-1], nil
 }
 
-func HasProcessAdminPrivileges() bool {
-	if int(C.IsElevated()) == 1 {
-		return true
+type WinUserProfile struct {
+	Name       string
+	Domain     string
+	SID        string
+	IsElevated bool
+}
+
+func GetWinUserProfile() (*WinUserProfile, error) {
+	var eTag C.DWORD
+	wup, err := C.GetWinUserProfile((*C.DWORD)(unsafe.Pointer(&eTag)))
+	if err != nil {
+		return nil, err
 	}
-	return false
+	if et := uint32(eTag); et != 0 {
+		return nil, fmt.Errorf("C.GetWinUserProfile exit tag is non-zero: %d", et)
+	}
+	defer C.FreeWinUserProfile(wup)
+
+	gwup := new(WinUserProfile)
+	gwup.Name = WCHARPtrToGoString(wup.Name)
+	gwup.Domain = WCHARPtrToGoString(wup.Domain)
+	gwup.SID = WCHARPtrToGoString(wup.SID)
+	if int(wup.Elevated) == 0 {
+		gwup.IsElevated = false
+	} else {
+		gwup.IsElevated = true
+	}
+
+	return gwup, nil
+}
+
+func HasProcessAdminPrivileges() (bool, error) {
+	wup, err := GetWinUserProfile()
+	if err != nil {
+		return false, err
+	}
+	
+	return wup.IsElevated, nil
 }
 
 func HideConsoleWindow() (err error) {
