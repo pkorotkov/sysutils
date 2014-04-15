@@ -7,10 +7,8 @@ import "C"
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"unsafe"
 )
 
@@ -102,11 +100,10 @@ func GetThisExecutableDirAndName() (string, string, error) {
 	defer C.free(unsafe.Pointer(fn))
 
 	if et := int32(eTag); et != 0 {
-		return "", fmt.Errorf("C.GetExecutableFullName: Error code (last error code) %d", et)
+		return "", "", fmt.Errorf("C.GetExecutableFullName: Error code (last error code) %d", et)
 	}
-	//sp := strings.Split(WCHARPtrToGoString(fn), string(os.PathSeparator))
-	//return sp[len(sp)-1], nil
 	d, n := filepath.Split(WCHARPtrToGoString(fn))
+	
 	return d, n, nil
 	
 }
