@@ -14,22 +14,29 @@ import (
 
 type OSProcess struct {
 	PID      int
+	PPID     int
 	ExecName string
+	UProfile UserProfile
+}
+
+func intToBool(i int) bool {
+	return i != 0
 }
 
 func GetOSProcesses() ([]OSProcess, error) {
 	var (
-		procs *C.PROCESSENTRY32W
-		n     C.DWORD
-		eTag  C.DWORD
+		procs  *C.OSProcess
+		n      C.DWORD
+		eTag   C.DWORD
+		leCode C.DWORD
 	)
-	procs = C.GetOSProcesses((*C.DWORD)(unsafe.Pointer(&n)), (*C.DWORD)(unsafe.Pointer(&eTag)))
+	procs = C.GetOSProcesses((*C.DWORD)(unsafe.Pointer(&n)), (*C.DWORD)(unsafe.Pointer(&eTag)), (*C.DWORD)(unsafe.Pointer(&leCode)))
 	if et := uint32(eTag); et != 0 {
-		return nil, fmt.Errorf("C.GetOSProcesses exit tag is non-zero: %d", et)
+		return nil, fmt.Errorf("C.GetOSProcesses: exit tag %d; last error code %d", et, int32(leCode))
 	}
-	defer C.free(unsafe.Pointer(procs))
+	defer C.FreeOSProcesses((*C.OSProcess)(unsafe.Pointer(procs)), n)
 
-	var procEntries []C.PROCESSENTRY32W
+	var procEntries []C.OSProcess
 	sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&procEntries)))
 	sliceHeader.Cap = int(n)
 	sliceHeader.Len = sliceHeader.Cap
@@ -37,7 +44,19 @@ func GetOSProcesses() ([]OSProcess, error) {
 
 	var rprocs []OSProcess
 	for _, pe := range procEntries {
-		rprocs = append(rprocs, OSProcess{int(pe.th32ProcessID), WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(&pe.szExeFile[0])))})
+		up := UserProfile{
+			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.UProfile.Name))),
+			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.UProfile.Domain))),
+			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.UProfile.SID))),
+			intToBool(int(pe.UProfile.Elevated)),
+		}
+		osp := OSProcess{
+			int(pe.PID),
+			int(pe.PPID),
+			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.ExecName))),
+			up,
+		}
+		rprocs = append(rprocs, osp)
 	}
 
 	return rprocs, nil
@@ -95,56 +114,52 @@ func ProcessByNameAndPIDExists(name string, pid int) (bool, error) {
 }
 
 func GetThisExecutableDirAndName() (string, string, error) {
-	var eTag C.DWORD
-	var fn *C.WCHAR = C.GetExecutableFullName((*C.DWORD)(unsafe.Pointer(&eTag)))
+	var eTag, leCode C.DWORD
+	var fn *C.WCHAR = C.GetCurrentExecutableFullName((*C.DWORD)(unsafe.Pointer(&eTag)), (*C.DWORD)(unsafe.Pointer(&leCode)))
 	defer C.free(unsafe.Pointer(fn))
 
 	if et := int32(eTag); et != 0 {
-		return "", "", fmt.Errorf("C.GetExecutableFullName: Error code (last error code) %d", et)
+		return "", "", fmt.Errorf("C.GetCurrentExecutableFullName: exit tag %d; last error code %d", et, int32(leCode))
 	}
 	d, n := filepath.Split(WCHARPtrToGoString(fn))
-	
+
 	return d, n, nil
-	
+
 }
 
-type WinUserProfile struct {
+type UserProfile struct {
 	Name       string
 	Domain     string
 	SID        string
 	IsElevated bool
 }
 
-func GetWinUserProfile() (*WinUserProfile, error) {
+func GetCurrentProcessUserProfile() (*UserProfile, error) {
 	var eTag C.DWORD
-	wup, err := C.GetWinUserProfile((*C.DWORD)(unsafe.Pointer(&eTag)))
+	up, err := C.GetCurrentProcessUserProfile((*C.DWORD)(unsafe.Pointer(&eTag)))
 	if err != nil {
 		return nil, err
 	}
 	if et := uint32(eTag); et != 0 {
-		return nil, fmt.Errorf("C.GetWinUserProfile exit tag is non-zero: %d", et)
+		return nil, fmt.Errorf("C.GetCurrentUserProfile: exit tag %d", et)
 	}
-	defer C.FreeWinUserProfile(wup)
+	defer C.FreeUserProfile(up)
 
-	gwup := new(WinUserProfile)
-	gwup.Name = WCHARPtrToGoString(wup.Name)
-	gwup.Domain = WCHARPtrToGoString(wup.Domain)
-	gwup.SID = WCHARPtrToGoString(wup.SID)
-	if int(wup.Elevated) == 0 {
-		gwup.IsElevated = false
-	} else {
-		gwup.IsElevated = true
-	}
+	gup := new(UserProfile)
+	gup.Name = WCHARPtrToGoString(up.Name)
+	gup.Domain = WCHARPtrToGoString(up.Domain)
+	gup.SID = WCHARPtrToGoString(up.SID)
+	gup.IsElevated = intToBool(int(up.Elevated))
 
-	return gwup, nil
+	return gup, nil
 }
 
-func HasProcessAdminPrivileges() (bool, error) {
-	wup, err := GetWinUserProfile()
+func HasCurrentProcessAdminPrivileges() (bool, error) {
+	wup, err := GetCurrentProcessUserProfile()
 	if err != nil {
 		return false, err
 	}
-	
+
 	return wup.IsElevated, nil
 }
 

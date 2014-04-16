@@ -7,27 +7,44 @@
 #include <locale.h>
 #include <windows.h>
 #include <tlhelp32.h>
+#include <psapi.h>
 #include <mq.h>
 
 #define MAX_NAME_PATH 256
 
-typedef struct WinUserProfile {
+typedef struct UserProfile {
     WCHAR *Name;
     WCHAR *Domain;
     WCHAR *SID;
     BOOL Elevated;
-} WinUserProfile;
+} UserProfile;
+
+typedef struct OSProcess {
+    DWORD PID;
+    DWORD PPID;
+    WCHAR *ExecName;
+    UserProfile *UProfile;
+} OSProcess;
+
+UserProfile *
+GetCurrentProcessUserProfile(DWORD *exitTag);
+
+UserProfile *
+GetProcessUserProfile(HANDLE hProcess, DWORD *exitTag);
 
 VOID
-FreeWinUserProfile(WinUserProfile *wup);
-
-WinUserProfile *
-GetWinUserProfile(DWORD *exitTag);
+FreeUserProfile(UserProfile *wup);
 
 WCHAR *
-GetExecutableFullName(DWORD *exitTag);
+GetCurrentExecutableFullName(DWORD *exitTag, DWORD *lastErrorCode);
 
-PROCESSENTRY32W *
-GetOSProcesses(DWORD *n, DWORD *exitTag);
+WCHAR *
+GetProcessNameInDeviceForm(HANDLE hProcess, DWORD *exitTag, DWORD *lastErrorCode);
+
+OSProcess *
+GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode);
+
+VOID
+FreeOSProcesses(OSProcess *osprocs, DWORD n);
 
 #endif /* WINAPIUTILS_H */
