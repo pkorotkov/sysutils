@@ -10,116 +10,7 @@ FreeUserProfile(UserProfile *up) {
 
 UserProfile *
 GetCurrentProcessUserProfile(DWORD *exitTag) {
-    HANDLE hToken = NULL;
-    TOKEN_USER *pTu = NULL;
-    DWORD dwDomainSize = 0;
-    DWORD dwNameSize = 0;
-    WCHAR *name;
-    WCHAR *domain;
-
-    if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, FALSE, &hToken)) {
-        if (GetLastError() != ERROR_NO_TOKEN) {
-            *exitTag = 1;
-            goto exit;
-        }
-        
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
-            *exitTag = 2;
-            goto exit;
-        }
-    }
-
-    TOKEN_ELEVATION elevation;
-    DWORD teSize = sizeof(TOKEN_ELEVATION);
-    BOOL res = GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &teSize);
-    if (0 == res) {
-        *exitTag = 3;
-        goto exit;
-    }
-
-    DWORD tuSize = 0;
-    GetTokenInformation(hToken, TokenUser, NULL, 0, &tuSize);
-    pTu = malloc(tuSize);
-    if (NULL == pTu) {
-        *exitTag = 4;
-        goto exit;
-    }
-    res = GetTokenInformation(hToken, TokenUser, pTu, tuSize, &tuSize);
-    if (0 == res) {
-        *exitTag = 5;
-        goto exit;
-    }
-
-    SID_NAME_USE snu;
-    LookupAccountSidW(NULL, pTu->User.Sid, NULL, &dwNameSize, NULL, &dwDomainSize, &snu);
-
-    name = malloc(dwNameSize * sizeof(WCHAR));
-    domain = malloc(dwDomainSize * sizeof(WCHAR));
-    res = LookupAccountSidW(NULL, pTu->User.Sid, name, &dwNameSize, domain, &dwDomainSize, &snu);
-    if (0 == res) {
-        *exitTag = 6;
-        goto exit;
-    }
-
-    UserProfile *up = malloc(sizeof(*up));
-    if (NULL == up) {
-        *exitTag = 7;
-        goto exit;
-    }
- 
-    WCHAR *sidStr = NULL;
-    res = ConvertSidToStringSidW(pTu->User.Sid, &sidStr);
-    if (0 == res) {
-        *exitTag = 8;
-        goto exit;
-    }
-
-    up->Name = malloc(sizeof(WCHAR) * (wcslen(name) + 1));
-    if (NULL == up->Name) {
-        *exitTag = 10;
-        goto exit;
-    }
-    wcscpy_s(up->Name, wcslen(name) + 1, name);
-
-    up->Domain = malloc(sizeof(WCHAR) * (wcslen(domain) + 1));
-    if (NULL == up->Domain) {
-        *exitTag = 11;
-        goto exit;
-    }
-    wcscpy_s(up->Domain, wcslen(domain) + 1, domain);
-
-    up->SID = malloc(sizeof(WCHAR) * (wcslen(sidStr) + 1));
-    if (NULL == up->SID) {
-        *exitTag = 12;
-        goto exit;
-    }
-    wcscpy_s(up->SID, wcslen(sidStr) + 1, sidStr);
-    
-    up->Elevated = elevation.TokenIsElevated;
-
-exit:
-    if (NULL != hToken) {
-        CloseHandle(hToken);
-    }
-    if (NULL != pTu) {
-        free(pTu); pTu = NULL;
-    }
-    if (0 != *exitTag) {
-        if (NULL != name) {
-            free(name); name = NULL;
-        }
-        if (NULL != domain) {
-            free(domain); domain = NULL;
-        }
-        if (NULL != sidStr) {
-            LocalFree(sidStr);
-        }
-        if (NULL != up) {
-            free(up); up = NULL;
-        }
-    }
-
-    return up;
+    return GetProcessUserProfile(GetCurrentProcess(), exitTag);
 }
 
 UserProfile *
@@ -217,16 +108,16 @@ exit:
     if (NULL != pTu) {
         free(pTu); pTu = NULL;
     }
+    if (NULL != name) {
+        free(name); name = NULL;
+    }
+    if (NULL != domain) {
+        free(domain); domain = NULL;
+    }
+    if (NULL != sidStr) {
+        LocalFree(sidStr); sidStr = NULL;
+    }
     if (0 != *exitTag) {
-        if (NULL != name) {
-            free(name); name = NULL;
-        }
-        if (NULL != domain) {
-            free(domain); domain = NULL;
-        }
-        if (NULL != sidStr) {
-            LocalFree(sidStr);
-        }
         if (NULL != up) {
             free(up); up = NULL;
         }
