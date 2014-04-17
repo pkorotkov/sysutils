@@ -4,7 +4,7 @@ VOID
 FreeUserProfile(UserProfile *up) {
     free(up->Name);
     free(up->Domain);
-    LocalFree(up->SID);
+    free(up->SID);
     free(up);
 }
 
@@ -73,9 +73,28 @@ GetCurrentProcessUserProfile(DWORD *exitTag) {
         *exitTag = 8;
         goto exit;
     }
-    up->Name = name;
-    up->Domain = domain;
-    up->SID = sidStr;
+
+    up->Name = malloc(sizeof(WCHAR) * (wcslen(name) + 1));
+    if (NULL == up->Name) {
+        *exitTag = 10;
+        goto exit;
+    }
+    wcscpy_s(up->Name, wcslen(name) + 1, name);
+
+    up->Domain = malloc(sizeof(WCHAR) * (wcslen(domain) + 1));
+    if (NULL == up->Domain) {
+        *exitTag = 11;
+        goto exit;
+    }
+    wcscpy_s(up->Domain, wcslen(domain) + 1, domain);
+
+    up->SID = malloc(sizeof(WCHAR) * (wcslen(sidStr) + 1));
+    if (NULL == up->SID) {
+        *exitTag = 12;
+        goto exit;
+    }
+    wcscpy_s(up->SID, wcslen(sidStr) + 1, sidStr);
+    
     up->Elevated = elevation.TokenIsElevated;
 
 exit:
@@ -92,8 +111,9 @@ exit:
         if (NULL != domain) {
             free(domain); domain = NULL;
         }
-        // Q: Check for nullity as well?
-        LocalFree(sidStr);
+        if (NULL != sidStr) {
+            LocalFree(sidStr);
+        }
         if (NULL != up) {
             free(up); up = NULL;
         }
@@ -166,9 +186,28 @@ GetProcessUserProfile(HANDLE hProcess, DWORD *exitTag) {
         *exitTag = 9;
         goto exit;
     }
-    up->Name = name;
-    up->Domain = domain;
-    up->SID = sidStr;
+
+    up->Name = malloc(sizeof(WCHAR) * (wcslen(name) + 1));
+    if (NULL == up->Name) {
+        *exitTag = 10;
+        goto exit;
+    }
+    wcscpy_s(up->Name, wcslen(name) + 1, name);
+
+    up->Domain = malloc(sizeof(WCHAR) * (wcslen(domain) + 1));
+    if (NULL == up->Domain) {
+        *exitTag = 11;
+        goto exit;
+    }
+    wcscpy_s(up->Domain, wcslen(domain) + 1, domain);
+
+    up->SID = malloc(sizeof(WCHAR) * (wcslen(sidStr) + 1));
+    if (NULL == up->SID) {
+        *exitTag = 12;
+        goto exit;
+    }
+    wcscpy_s(up->SID, wcslen(sidStr) + 1, sidStr);
+
     up->Elevated = elevation.TokenIsElevated;
 
 exit:
@@ -185,8 +224,9 @@ exit:
         if (NULL != domain) {
             free(domain); domain = NULL;
         }
-        // Q: Check for nullity as well?
-        LocalFree(sidStr);
+        if (NULL != sidStr) {
+            LocalFree(sidStr);
+        }
         if (NULL != up) {
             free(up); up = NULL;
         }
