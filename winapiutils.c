@@ -1,11 +1,73 @@
 #include "winapiutils.h"
 
-VOID
-FreeUserProfile(UserProfile *up) {
-    free(up->Name);
-    free(up->Domain);
-    free(up->SID);
-    free(up);
+static
+PVOID
+GetPebAddress(HANDLE pHandle) {
+    _NtQueryInformationProcess NtQueryInformationProcess =
+        (_NtQueryInformationProcess)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationProcess");
+    
+    PROCESS_BASIC_INFORMATION pbi;
+    NtQueryInformationProcess(pHandle, 0, &pbi, sizeof(pbi), NULL);
+
+    return pbi.PebBaseAddress;
+}
+
+static
+WCHAR *
+GetProcessCommandLine(HANDLE pHandle, DWORD *exitTag, DWORD *lastErrorCode) {
+    PVOID rtlurp;
+    UNICODE_STRING cmdln;
+
+    PVOID peba = GetPebAddress(pHandle);
+
+    // Get the address of ProcessParameters.
+    if (!ReadProcessMemory(pHandle, (PCHAR)peba + FIELD_OFFSET(PEB, ProcessParameters), &rtlurp, sizeof(PVOID), NULL)) {
+        // Could not read the address of ProcessParameters.
+        *exitTag = 1;
+        *lastErrorCode = GetLastError();
+        return NULL;
+    }
+    
+    // Read the CommandLine UNICODE_STRING structure.
+    if (!ReadProcessMemory(pHandle, (PCHAR)rtlurp + FIELD_OFFSET(RTL_USER_PROCESS_PARAMETERS, CommandLine), &cmdln, sizeof(cmdln), NULL)) {
+        // Could not read the address of CommandLine.
+        *exitTag = 2;
+        *lastErrorCode = GetLastError();
+        return NULL;
+    }
+
+    // Allocate memory to hold the command line.
+    WCHAR *cmdlncnts = malloc(cmdln.Length);
+    if (NULL == cmdlncnts) {
+        *exitTag = 3;
+        return NULL;
+    }
+
+    // Read the command line contents.
+    if (!ReadProcessMemory(pHandle, cmdln.Buffer, cmdlncnts, cmdln.Length, NULL)) {
+        // Could not read the command line string.
+        *exitTag = 4;
+        *lastErrorCode = GetLastError();
+        free(cmdlncnts);
+        cmdlncnts = NULL;
+        return NULL;
+    }
+
+    WCHAR *result = malloc(cmdln.Length + 2);
+    if(result == NULL) {
+        *exitTag = 5;
+        *lastErrorCode = GetLastError();
+        free(cmdlncnts);
+        cmdlncnts = NULL;
+        return NULL;
+    }
+    memcpy(result, cmdlncnts, cmdln.Length);
+    // ... plus two bytes (size of WCHAR) for a nul-terminator.
+    *(WCHAR*)((char*)result + cmdln.Length) = 0x0000L;
+    free(cmdlncnts);
+    cmdlncnts = NULL;
+    
+    return result;
 }
 
 UserProfile *
@@ -126,6 +188,14 @@ exit:
     return up;
 }
 
+VOID
+FreeUserProfile(UserProfile *up) {
+    free(up->Name);
+    free(up->Domain);
+    free(up->SID);
+    free(up);
+}
+
 WCHAR *
 GetCurrentExecutableFullName(DWORD *exitTag, DWORD *lastErrorCode) {
     WCHAR *fileName = malloc(MAX_NAME_PATH * sizeof(*fileName));
@@ -134,8 +204,7 @@ GetCurrentExecutableFullName(DWORD *exitTag, DWORD *lastErrorCode) {
         return NULL;
     }
 
-    DWORD size = GetModuleFileNameW(NULL, fileName, MAX_PATH);
-    if (0 == size) {
+    if (0 == GetModuleFileNameW(NULL, fileName, MAX_PATH)) {
         *exitTag = 2;
         *lastErrorCode = GetLastError();
         free(fileName);
@@ -153,8 +222,7 @@ GetProcessNameInDeviceForm(HANDLE hProcess, DWORD *exitTag, DWORD *lastErrorCode
         return NULL;
     }
 
-    DWORD size = GetProcessImageFileNameW(hProcess, fileName, MAX_PATH);
-    if (0 == size) {
+    if (0 == GetProcessImageFileNameW(hProcess, fileName, MAX_PATH)) {
         *exitTag = 2;
         *lastErrorCode = GetLastError();
         free(fileName);
@@ -162,16 +230,6 @@ GetProcessNameInDeviceForm(HANDLE hProcess, DWORD *exitTag, DWORD *lastErrorCode
     }
 
     return fileName;
-}
-
-VOID
-FreeOSProcesses(OSProcess *osprocs, DWORD n) {
-    DWORD i;
-    for (i = 0; i < n; i++) {
-        free(osprocs[i].ExecName);
-        FreeUserProfile(osprocs[i].UProfile);
-    }
-    free(osprocs);
 }
 
 OSProcess *
@@ -193,7 +251,7 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
     // Walkthrough a snapshot of all OS processes.
     if (Process32FirstW(snapshot, &process)) {
         do {
-            HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, process.th32ProcessID);
+            HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, process.th32ProcessID);
             if (NULL == hProcess) {
                 // Ignore the process.
                 continue;
@@ -206,9 +264,16 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
                 CloseHandle(hProcess);
                 continue;
             }
+            procs[i].CommandLine = GetProcessCommandLine(hProcess, exitTag, lastErrorCode);
+            if (0 != *exitTag) {
+                free(procs[i].ExecName);
+                CloseHandle(hProcess);
+                continue;
+            }
             procs[i].UProfile = GetProcessUserProfile(hProcess, exitTag);
             if (0 != *exitTag) {
                 free(procs[i].ExecName);
+                free(procs[i].CommandLine);
                 FreeUserProfile(procs[i].UProfile);
                 CloseHandle(hProcess);
                 continue;
@@ -227,4 +292,15 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
     CloseHandle(snapshot);
     *n = i;
     return procs;
+}
+
+VOID
+FreeOSProcesses(OSProcess *osprocs, DWORD n) {
+    DWORD i;
+    for (i = 0; i < n; i++) {
+        free(osprocs[i].ExecName);
+        free(osprocs[i].CommandLine);
+        FreeUserProfile(osprocs[i].UProfile);
+    }
+    free(osprocs);
 }

@@ -6,11 +6,14 @@
 #include <wchar.h>
 #include <locale.h>
 #include <windows.h>
+#include <winternl.h>
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <mq.h>
 
 #define MAX_NAME_PATH 256
+
+typedef NTSTATUS (NTAPI *_NtQueryInformationProcess)(HANDLE pHandle, DWORD pInformationClass, PVOID pInformation, DWORD pInformationLength, PDWORD ReturnLength);
 
 typedef struct UserProfile {
     WCHAR *Name;
@@ -23,6 +26,7 @@ typedef struct OSProcess {
     DWORD PID;
     DWORD PPID;
     WCHAR *ExecName;
+    WCHAR *CommandLine;
     UserProfile *UProfile;
 } OSProcess;
 

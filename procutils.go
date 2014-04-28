@@ -13,10 +13,11 @@ import (
 )
 
 type OSProcess struct {
-	PID      int
-	PPID     int
-	ExecName string
-	UProfile UserProfile
+	PID         int
+	PPID        int
+	ExecName    string
+	CommandLine string
+	UProfile    UserProfile
 }
 
 func intToBool(i int) bool {
@@ -54,6 +55,7 @@ func GetOSProcesses() ([]OSProcess, error) {
 			int(pe.PID),
 			int(pe.PPID),
 			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.ExecName))),
+			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.CommandLine))),
 			up,
 		}
 		rprocs = append(rprocs, osp)
