@@ -1,18 +1,20 @@
 package winutils
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
-func TestGetOSProcessesEx(t *testing.T) {
-	n := 100
+func TestGetOSProcesses(t *testing.T) {
+	n := 1
 	for i := 0; i < n; i++ {
-		_, err := GetOSProcesses()
+		ps, err := GetOSProcesses()
 		if err != nil {
 			t.Error(err)
 		}
-		/*
-			for _, p := range ps {
-				fmt.Println(p.PID, p.CommandLine)
-			}
-		*/
+
+		for _, p := range ps {
+			fmt.Println(p)
+		}
 	}
 }

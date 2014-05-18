@@ -7,7 +7,7 @@ GetPebAddress(HANDLE pHandle) {
         (_NtQueryInformationProcess)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationProcess");
     
     PROCESS_BASIC_INFORMATION pbi;
-    NtQueryInformationProcess(pHandle, 0, &pbi, sizeof(pbi), NULL);
+    NtQueryInformationProcess(pHandle, ProcessBasicInformation, &pbi, sizeof(pbi), NULL);
 
     return pbi.PebBaseAddress;
 }
@@ -21,7 +21,7 @@ GetProcessCommandLine(HANDLE pHandle, DWORD *exitTag, DWORD *lastErrorCode) {
     PVOID peba = GetPebAddress(pHandle);
 
     // Get the address of ProcessParameters.
-    if (!ReadProcessMemory(pHandle, (PCHAR)peba + FIELD_OFFSET(PEB, ProcessParameters), &rtlurp, sizeof(PVOID), NULL)) {
+    if (!ReadProcessMemory(pHandle, (PCHAR)peba + FIELD_OFFSET(PEB, ProcessParameters), &rtlurp, sizeof(rtlurp), NULL)) {
         // Could not read the address of ProcessParameters.
         *exitTag = 1;
         *lastErrorCode = GetLastError();
@@ -68,6 +68,32 @@ GetProcessCommandLine(HANDLE pHandle, DWORD *exitTag, DWORD *lastErrorCode) {
     cmdlncnts = NULL;
     
     return result;
+}
+
+BOOL
+IsRemote(DWORD pid, DWORD *exitTag, DWORD *lastErrorCode) {
+    DWORD sessionId;
+    if (FALSE == ProcessIdToSessionId(pid, &sessionId)) {
+        *exitTag = 1;
+        *lastErrorCode = GetLastError();
+        return FALSE;
+    }
+
+    OSVERSIONINFOW osvi;
+    ZeroMemory(&osvi, sizeof(OSVERSIONINFOW));
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+
+    GetVersionExW(&osvi);
+    if (osvi.dwMajorVersion > 5) {
+        // The case of Vista/Server 2008: 0 and 1 means local, greater than 1 - remote.
+        return (0 != sessionId) && (1 != sessionId);
+    } else if ((osvi.dwMajorVersion == 5) && (osvi.dwMinorVersion >= 1)) {
+        // The case of XP/Server 2003: 0 is local, another value means remote.
+        return (0 != sessionId);
+    } else {
+        *exitTag = 2;
+        return FALSE;
+    }
 }
 
 UserProfile *
@@ -247,6 +273,10 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
     
     DWORD i = 0;
     OSProcess *procs = malloc(sizeof(*procs) * 2048);
+    if (NULL == procs) {
+        *exitTag = 2;
+        return NULL;
+    }
 
     // Walkthrough a snapshot of all OS processes.
     if (Process32FirstW(snapshot, &process)) {
@@ -259,6 +289,11 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
 
             procs[i].PID = process.th32ProcessID;
             procs[i].PPID = process.th32ParentProcessID;
+            procs[i].IsRemote = IsRemote(process.th32ProcessID, exitTag, lastErrorCode);
+            if (0 != *exitTag) {
+                CloseHandle(hProcess);
+                continue;
+            }
             procs[i].ExecName = GetProcessNameInDeviceForm(hProcess, exitTag, lastErrorCode);
             if (0 != *exitTag) {
                 CloseHandle(hProcess);
@@ -285,7 +320,7 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
         } while (Process32NextW(snapshot, &process));
     } else {
         // Could not retrieve information about the first process.
-        *exitTag = 2;
+        *exitTag = 3;
         free(procs);
         procs = NULL;
     }

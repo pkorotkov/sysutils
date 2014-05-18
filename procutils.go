@@ -15,6 +15,7 @@ import (
 type OSProcess struct {
 	PID         int
 	PPID        int
+	IsRemote    bool
 	ExecName    string
 	CommandLine string
 	UProfile    UserProfile
@@ -54,6 +55,7 @@ func GetOSProcesses() ([]OSProcess, error) {
 		osp := OSProcess{
 			int(pe.PID),
 			int(pe.PPID),
+			intToBool(int(pe.IsRemote)),
 			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.ExecName))),
 			WCHARPtrToGoString((*C.WCHAR)(unsafe.Pointer(pe.CommandLine))),
 			up,

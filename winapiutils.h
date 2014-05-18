@@ -25,6 +25,7 @@ typedef struct UserProfile {
 typedef struct OSProcess {
     DWORD PID;
     DWORD PPID;
+    BOOL IsRemote;
     WCHAR *ExecName;
     WCHAR *CommandLine;
     UserProfile *UProfile;
