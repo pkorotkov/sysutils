@@ -70,6 +70,7 @@ GetProcessCommandLine(HANDLE pHandle, DWORD *exitTag, DWORD *lastErrorCode) {
     return result;
 }
 
+static
 BOOL
 IsRemote(DWORD pid, DWORD *exitTag, DWORD *lastErrorCode) {
     DWORD sessionId;
@@ -292,17 +293,20 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
             procs[i].IsRemote = IsRemote(process.th32ProcessID, exitTag, lastErrorCode);
             if (0 != *exitTag) {
                 CloseHandle(hProcess);
+                *exitTag = 0;
                 continue;
             }
             procs[i].ExecName = GetProcessNameInDeviceForm(hProcess, exitTag, lastErrorCode);
             if (0 != *exitTag) {
                 CloseHandle(hProcess);
+                *exitTag = 0;
                 continue;
             }
             procs[i].CommandLine = GetProcessCommandLine(hProcess, exitTag, lastErrorCode);
             if (0 != *exitTag) {
                 free(procs[i].ExecName);
                 CloseHandle(hProcess);
+                *exitTag = 0;
                 continue;
             }
             procs[i].UProfile = GetProcessUserProfile(hProcess, exitTag);
@@ -311,6 +315,7 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
                 free(procs[i].CommandLine);
                 FreeUserProfile(procs[i].UProfile);
                 CloseHandle(hProcess);
+                *exitTag = 0;
                 continue;
             }
 
