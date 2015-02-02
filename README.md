@@ -1,6 +1,8 @@
 winutils
 ========
 
+[![GoDoc](https://godoc.org/github.com/pkorotkov/winutils?status.svg)](https://godoc.org/github.com/pkorotkov/winutils)
+
 ## FYI
 
 The library was intended to provide basic API for typical WinAPI consumers.
