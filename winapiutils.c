@@ -5,7 +5,7 @@ PVOID
 GetPebAddress(HANDLE pHandle) {
     _NtQueryInformationProcess NtQueryInformationProcess =
         (_NtQueryInformationProcess)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationProcess");
-    
+
     PROCESS_BASIC_INFORMATION pbi;
     NtQueryInformationProcess(pHandle, ProcessBasicInformation, &pbi, sizeof(pbi), NULL);
 
@@ -27,7 +27,7 @@ GetProcessCommandLine(HANDLE pHandle, DWORD *exitTag, DWORD *lastErrorCode) {
         *lastErrorCode = GetLastError();
         return NULL;
     }
-    
+
     // Read the CommandLine UNICODE_STRING structure.
     if (!ReadProcessMemory(pHandle, (PCHAR)rtlurp + FIELD_OFFSET(RTL_USER_PROCESS_PARAMETERS, CommandLine), &cmdln, sizeof(cmdln), NULL)) {
         // Could not read the address of CommandLine.
@@ -66,7 +66,7 @@ GetProcessCommandLine(HANDLE pHandle, DWORD *exitTag, DWORD *lastErrorCode) {
     *(WCHAR*)((char*)result + cmdln.Length) = 0x0000L;
     free(cmdlncnts);
     cmdlncnts = NULL;
-    
+
     return result;
 }
 
@@ -159,7 +159,7 @@ GetProcessUserProfile(HANDLE hProcess, DWORD *exitTag) {
         *exitTag = 8;
         goto exit;
     }
- 
+
     WCHAR *sidStr = NULL;
     res = ConvertSidToStringSidW(pTu->User.Sid, &sidStr);
     if (0 == res) {
@@ -271,7 +271,7 @@ GetOSProcesses(DWORD *n, DWORD *exitTag, DWORD *lastErrorCode) {
     PROCESSENTRY32W process;
     ZeroMemory(&process, sizeof(process));
     process.dwSize = sizeof(process);
-    
+
     DWORD i = 0;
     OSProcess *procs = malloc(sizeof(*procs) * 2048);
     if (NULL == procs) {
