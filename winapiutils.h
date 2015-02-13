@@ -1,6 +1,10 @@
 #ifndef WINAPIUTILS_H
 #define WINAPIUTILS_H
 
+// State target OS as Windows 7.
+// https://msdn.microsoft.com/en-us/library/aa383745.aspx
+#define _WIN32_WINNT 0x0601
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
