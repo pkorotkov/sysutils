@@ -1,7 +1,7 @@
 sysutils
 ========
 
-[![GoDoc](https://godoc.org/github.com/pkorotkov/winutils?status.svg)](https://godoc.org/github.com/pkorotkov/winutils)
+[![GoDoc](https://godoc.org/github.com/pkorotkov/sysutils?status.svg)](https://godoc.org/github.com/pkorotkov/sysutils)
 
 ## FYI
 
@@ -12,7 +12,7 @@ Despite my library still has some unique functionality as compared to gopsutil I
 
 ## Installation
 ```
-go get -u -v github.com/pkorotkov/winutils
+go get -u -v github.com/pkorotkov/sysutils
 ```
 
 ## License
