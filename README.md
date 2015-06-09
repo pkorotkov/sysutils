@@ -1,4 +1,4 @@
-winutils
+sysutils
 ========
 
 [![GoDoc](https://godoc.org/github.com/pkorotkov/winutils?status.svg)](https://godoc.org/github.com/pkorotkov/winutils)
