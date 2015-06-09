@@ -1,4 +1,4 @@
-package winutils
+package sysutils
 
 /*
 #cgo windows CFLAGS: -I. -fno-stack-check -fno-stack-protector -mno-stack-arg-probe
